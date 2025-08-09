@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weather-Time Heatmap</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap + Leaflet + Heatmap.js -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/heatmap.js"></script>
+    <script src="https://unpkg.com/leaflet-heatmap/leaflet-heatmap.js"></script>
+
+    <!-- Custom styles -->
+    <style>
+        body {
+            background-image: url("https://th.bing.com/th/id/R.4d9c93286f7f6bca62e71f129dbbf6b6?rik=KBh%2fhqpcv7vc9g&riu=http%3a%2f%2fstatic.tumblr.com%2fk987y98%2fIdDl2npqz%2fspongebob-squarepants-p78.jpg&ehk=7UlSimf9L9m%2fVnJemN5CYrSUUs4sS6Uds2x%2fc0v2jeU%3d&risl=&pid=ImgRaw&r=0");
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+            font-family: 'Segoe UI', sans-serif;
+            color: #333;
+        }
+
+        .overlay {
+            background-color: rgba(255, 255, 255, 0.88);
+            min-height: 100vh;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-weight: 700;
+            text-align: center;
+            color: #0077b6;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-control {
+            border-radius: 10px;
+        }
+
+        .btn {
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        #map {
+            border-radius: 12px;
+            overflow: hidden;
+            height: 500px;
+            margin-top: 20px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding: 1rem;
+            background-color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            color: #444;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+<div class="overlay">
+    <div class="container">
+        <h1>🌍 Weather-Time Heatmap</h1>
+
+        <!-- Search form -->
+        <form method="POST" class="mb-4 mx-auto" style="max-width: 500px;">
+            <input class="form-control mb-3" type="text" name="country" placeholder="Enter a country (e.g. Japan)" required>
+            <button class="btn btn-primary w-100" type="submit">Show Weather</button>
+        </form>
+
+        {% if data %}
+        <!-- Modal -->
+        <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content text-white" style="background-image: url('/static/images/background.jpg'); background-size: cover; background-position: center;">
+              <div class="modal-header bg-dark bg-opacity-50">
+                <h5 class="modal-title" id="resultModalLabel">{{ data.country }} - Weather Info</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body bg-dark bg-opacity-50">
+                <p><strong>Capital:</strong> {{ data.capital }}</p>
+                <p><strong>Temperature:</strong> {{ data.temperature }} °C</p>
+                <p><strong>Description:</strong> {{ data.description }}</p>
+                <p><strong>Time:</strong> {{ data.datetime }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weather info card -->
+        <div class="card p-4 mt-4">
+            <h4 class="mb-3">🌤 Weather & Time in {{ data.country }}</h4>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>Capital:</strong> {{ data.capital }}</li>
+                <li class="list-group-item"><strong>Temperature:</strong> {{ data.temperature }} °C</li>
+                <li class="list-group-item"><strong>Local Time:</strong> {{ data.datetime }}</li>
+                <li class="list-group-item"><strong>Description:</strong> {{ data.description }}</li>
+            </ul>
+        </div>
+        <!-- Fun Fact -->
+    <div class="card p-4 mt-4">
+        <h4 class="mb-3">📘 Fun Fact about {{ data.country }}</h4>
+        <p>{{ data.fun_fact }}</p>
+    </div>
+    
+
+    <!-- Webcam -->
+<div class="card p-4 mt-4">
+    <h4 class="mb-3">🎥 Live Webcam near {{ data.capital }}</h4>
+    {% if data.webcam %}
+        <div class="ratio ratio-16x9">
+            <iframe src="{{ data.webcam }}" frameborder="0" allowfullscreen></iframe>
+        </div>
+    {% else %}
+        <p>No webcam available near the capital.</p>
+    {% endif %}
+</div>
+
+
+
+        <!-- Map -->
+        <div id="map"></div>
+
+        <!-- JSON data block -->
+        <script id="weather-data" type="application/json">
+            {{ data | tojson | safe }}
+        </script>
+
+        <!-- Map Script -->
+        <script>
+            const weatherData = JSON.parse(document.getElementById('weather-data').textContent);
+
+            const map = L.map('map').setView([weatherData.lat, weatherData.lon], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            const heatmapLayer = new HeatmapOverlay({
+                radius: 30,
+                maxOpacity: 0.8,
+                scaleRadius: true,
+                useLocalExtrema: true,
+                latField: 'lat',
+                lngField: 'lng',
+                valueField: 'value'
+            });
+
+            const heatmapData = {
+                max: 50,
+                data: [{
+                    lat: weatherData.lat,
+                    lng: weatherData.lon,
+                    value: weatherData.temperature
+                }]
+            };
+
+            map.addLayer(heatmapLayer);
+            heatmapLayer.setData(heatmapData);
+        </script>
+
+        <!-- Auto-show modal -->
+        <script>
+            window.onload = function () {
+                const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+                modal.show();
+            };
+        </script>
+        {% endif %}
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        Thanks for using. Made by <strong>Davit Bagauri</strong>. All rights reserved.
+    </footer>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
